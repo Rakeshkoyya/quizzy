@@ -20,6 +20,9 @@ interface ResultsTabsProps {
   wrongQuestions: WrongQuestion[];
   unansweredQuestions: number[];
   answerKey: Record<string, string>;
+  correctCount: number;
+  wrongCount: number;
+  unansweredCount: number;
 }
 
 export function ResultsTabs({
@@ -27,66 +30,94 @@ export function ResultsTabs({
   wrongQuestions,
   unansweredQuestions,
   answerKey,
+  correctCount,
+  wrongCount,
+  unansweredCount,
 }: ResultsTabsProps) {
   const [activeTab, setActiveTab] = useState<Tab>("correct");
 
-  const tabs: { id: Tab; label: string; count: number; color: string; bgColor: string }[] = [
+  const cards = [
     {
-      id: "correct",
+      id: "correct" as Tab,
       label: "Correct",
-      count: correctQuestions.length,
-      color: "#7a9a6d",
-      bgColor: "#eef4eb",
+      count: correctCount,
+      iconBg: "#eef4eb",
+      iconColor: "#7a9a6d",
+      textColor: "#7a9a6d",
+      icon: (
+        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        </svg>
+      ),
     },
     {
-      id: "wrong",
+      id: "wrong" as Tab,
       label: "Wrong",
-      count: wrongQuestions.length,
-      color: "#c45c5c",
-      bgColor: "#fceaea",
+      count: wrongCount,
+      iconBg: "#fceaea",
+      iconColor: "#c45c5c",
+      textColor: "#c45c5c",
+      icon: (
+        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      ),
     },
     {
-      id: "unanswered",
+      id: "unanswered" as Tab,
       label: "Unanswered",
-      count: unansweredQuestions.length,
-      color: "#8b7355",
-      bgColor: "#f5efe8",
+      count: unansweredCount,
+      iconBg: "#f5efe8",
+      iconColor: "#8b7355",
+      textColor: "#8b7355",
+      icon: (
+        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
     },
   ];
 
   return (
-    <section className="rounded-2xl border border-[#e8ddd4] bg-white shadow-sm">
-      {/* Tab Headers */}
-      <div className="flex border-b border-[#e8ddd4]">
-        {tabs.map((tab) => (
+    <>
+      {/* Clickable Stats Cards */}
+      <section className="grid gap-4 sm:grid-cols-3">
+        {cards.map((card) => (
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex flex-1 items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all ${
-              activeTab === tab.id
-                ? "border-b-2 text-[#3d3029]"
-                : "text-[#9a8b7a] hover:bg-[#f5efe8] hover:text-[#3d3029]"
+            key={card.id}
+            type="button"
+            onClick={() => setActiveTab(card.id)}
+            className={`rounded-2xl border-2 bg-white p-6 shadow-sm transition-all text-left ${
+              activeTab === card.id
+                ? "border-current ring-2 ring-current/20"
+                : "border-[#e8ddd4] hover:border-[#c9784e]/50 hover:shadow-md"
             }`}
             style={{
-              borderBottomColor: activeTab === tab.id ? tab.color : "transparent",
-            }}
+              borderColor: activeTab === card.id ? card.textColor : undefined,
+              "--tw-ring-color": activeTab === card.id ? `${card.textColor}33` : undefined,
+            } as React.CSSProperties}
           >
-            <span>{tab.label}</span>
-            <span
-              className="rounded-full px-2 py-0.5 text-xs font-semibold"
-              style={{
-                backgroundColor: tab.bgColor,
-                color: tab.color,
-              }}
-            >
-              {tab.count}
-            </span>
+            <div className="flex items-center gap-3">
+              <div
+                className="flex h-10 w-10 items-center justify-center rounded-xl"
+                style={{ backgroundColor: card.iconBg, color: card.iconColor }}
+              >
+                {card.icon}
+              </div>
+              <div>
+                <p className="text-sm text-[#9a8b7a]">{card.label}</p>
+                <p className="text-2xl font-bold" style={{ color: card.textColor }}>
+                  {card.count}
+                </p>
+              </div>
+            </div>
           </button>
         ))}
-      </div>
+      </section>
 
       {/* Tab Content */}
-      <div className="p-6">
+      <section className="rounded-2xl border border-[#e8ddd4] bg-white shadow-sm">
+        <div className="p-6">
         {/* Correct Answers Tab */}
         {activeTab === "correct" && (
           <div>
@@ -195,6 +226,7 @@ export function ResultsTabs({
           </div>
         )}
       </div>
-    </section>
+      </section>
+    </>
   );
 }

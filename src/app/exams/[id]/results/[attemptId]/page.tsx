@@ -95,57 +95,15 @@ export default async function ResultsPage({ params }: { params: Params }) {
         </p>
       </section>
 
-      {/* Stats Cards */}
-      <section className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-[#e8ddd4] bg-white p-6 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef4eb]">
-              <svg className="h-5 w-5 text-[#7a9a6d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm text-[#9a8b7a]">Correct</p>
-              <p className="text-2xl font-bold text-[#7a9a6d]">{attempt.correctCount}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-[#e8ddd4] bg-white p-6 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#fceaea]">
-              <svg className="h-5 w-5 text-[#c45c5c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm text-[#9a8b7a]">Wrong</p>
-              <p className="text-2xl font-bold text-[#c45c5c]">{attempt.wrongCount}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-[#e8ddd4] bg-white p-6 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f5efe8]">
-              <svg className="h-5 w-5 text-[#8b7355]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm text-[#9a8b7a]">Unanswered</p>
-              <p className="text-2xl font-bold text-[#8b7355]">{attempt.unansweredCount}</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Tabbed Results */}
+      {/* Clickable Stats Cards & Results */}
       <ResultsTabs
         correctQuestions={correctQuestions}
         wrongQuestions={wrongQuestions}
         unansweredQuestions={unansweredQuestions}
         answerKey={answerKey}
+        correctCount={attempt.correctCount}
+        wrongCount={attempt.wrongCount}
+        unansweredCount={attempt.unansweredCount}
       />
 
       {/* Actions */}
