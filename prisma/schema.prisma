@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String        @id @db.Uuid
+  email     String        @unique
+  createdAt DateTime      @default(now())
+  exams     Exam[]
+  attempts  ExamAttempt[]
+}
+
+model Exam {
+  id               String        @id @default(uuid()) @db.Uuid
+  title            String
+  timeLimitMinutes Int
+  questionCount    Int
+  answerKey        Json
+  imagePath        String
+  userId           String        @db.Uuid
+  createdAt        DateTime      @default(now())
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempts         ExamAttempt[]
+
+  @@index([userId])
+}
+
+model ExamAttempt {
+  id              String   @id @default(uuid()) @db.Uuid
+  examId           String   @db.Uuid
+  userId           String   @db.Uuid
+  startedAt        DateTime
+  submittedAt      DateTime @default(now())
+  userAnswers      Json
+  correctCount     Int
+  wrongCount       Int
+  unansweredCount  Int
+  wrongQuestions   Json
+  unansweredQuestions Json
+  exam             Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([examId])
+  @@index([userId])
+}

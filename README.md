@@ -1,36 +1,84 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Exam Prep (Phase 1)
 
-## Getting Started
+Phase 1 implements:
 
-First, run the development server:
+- User authentication (Supabase Auth)
+- Upload answer-key image to Supabase Storage
+- OCR extraction via Google Cloud Vision API
+- Parse to JSON mapping: question number -> answer option (`A/B/C/D`)
+- Create timed exam
+- Attempt UI (one question view, navigation, save selected answers)
+- Result summary (correct, wrong, unanswered)
+- Wrong/unanswered question row lists
+
+## Tech Stack
+
+- Next.js (App Router, TypeScript)
+- Supabase (Auth + Storage + PostgreSQL)
+- Prisma (schema + migrations)
+- Google Cloud Vision API (OCR)
+
+## 1) Environment Variables
+
+Copy `.env.example` to `.env.local` and fill:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+DATABASE_URL=
+DIRECT_URL=
+GOOGLE_CLOUD_API_KEY=
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 2) Supabase Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Create project in Supabase.
+2. Enable **Email** auth provider in Auth settings.
+3. Create storage bucket named `answer-keys`.
+4. Add authenticated insert/read policies for the bucket.
+5. Get API values from **Project Settings -> API**:
+	- Project URL -> `NEXT_PUBLIC_SUPABASE_URL`
+	- `anon` public key -> `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+6. Get DB connection strings from **Project Settings -> Database**:
+	- Pooler URL -> `DATABASE_URL`
+	- Direct URL -> `DIRECT_URL`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 3) Google Vision API Setup
 
-## Learn More
+1. Create/select Google Cloud project.
+2. Enable **Cloud Vision API**.
+3. Create API key.
+4. Restrict the key to Vision API.
+5. Put key in `GOOGLE_CLOUD_API_KEY`.
 
-To learn more about Next.js, take a look at the following resources:
+## 4) Prisma Migrations (Supabase DB)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npx prisma generate
+npx prisma migrate dev --name init
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+For deployment environments:
 
-## Deploy on Vercel
+```bash
+npx prisma migrate deploy
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 5) Run App
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000`.
+
+## Migration Tool Answer (Liquibase/Alembic equivalent)
+
+Yes. In this project, Prisma is used as the migration tool from Next.js:
+
+- schema in `prisma/schema.prisma`
+- migration files in `prisma/migrations`
+- commands: `prisma migrate dev` and `prisma migrate deploy`
+
+Alternative: Supabase CLI migrations are also valid if you prefer SQL-first workflow.
