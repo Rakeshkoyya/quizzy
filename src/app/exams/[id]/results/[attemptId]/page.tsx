@@ -36,6 +36,10 @@ export default async function ResultsPage({ params }: { params: Params }) {
   const totalQuestions = attempt.correctCount + attempt.wrongCount + attempt.unansweredCount;
   const scorePercent = Math.round((attempt.correctCount / totalQuestions) * 100);
 
+  // Calculate marks: +4 for correct, -1 for wrong, 0 for unanswered
+  const marksObtained = (attempt.correctCount * 4) + (attempt.wrongCount * -1);
+  const maxMarks = totalQuestions * 4;
+
   // Calculate correct questions
   const wrongQuestionNumbers = new Set(wrongQuestions.map((q) => q.questionNumber));
   const unansweredSet = new Set(unansweredQuestions);
@@ -75,6 +79,19 @@ export default async function ResultsPage({ params }: { params: Params }) {
         <h2 className="text-xl font-semibold text-[#3d3029]">Your Score</h2>
         <p className="mt-2 text-[#9a8b7a]">
           You answered {attempt.correctCount} out of {totalQuestions} questions correctly
+        </p>
+        
+        {/* Marks Display */}
+        <div className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#f5efe8] px-4 py-2">
+          <span className={`text-2xl font-bold ${marksObtained >= 0 ? "text-[#7a9a6d]" : "text-[#c45c5c]"}`}>
+            {marksObtained}
+          </span>
+          <span className="text-lg text-[#9a8b7a]">/</span>
+          <span className="text-2xl font-bold text-[#3d3029]">{maxMarks}</span>
+          <span className="text-sm text-[#9a8b7a]">marks obtained</span>
+        </div>
+        <p className="mt-2 text-xs text-[#9a8b7a]">
+          (+4 per correct, -1 per wrong)
         </p>
       </section>
 
