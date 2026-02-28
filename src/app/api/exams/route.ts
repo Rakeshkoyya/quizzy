@@ -14,13 +14,43 @@ const createExamSchema = z.object({
 export async function GET() {
   try {
     const user = await requireUser();
-    const exams = await prisma.exam.findMany({
+    
+    // Get user's own exams
+    const myExams = await prisma.exam.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
-      include: { attempts: { orderBy: { submittedAt: "desc" }, take: 1 } },
+      include: {
+        attempts: { 
+          where: { userId: user.id },
+          orderBy: { submittedAt: "desc" }, 
+          take: 1 
+        },
+        user: {
+          select: { email: true },
+        },
+      },
     });
 
-    return NextResponse.json({ exams });
+    // Get public exams from other users
+    const publicExams = await prisma.exam.findMany({
+      where: { 
+        isPublic: true,
+        userId: { not: user.id },
+      },
+      orderBy: { createdAt: "desc" },
+      include: {
+        attempts: { 
+          where: { userId: user.id },
+          orderBy: { submittedAt: "desc" }, 
+          take: 1 
+        },
+        user: {
+          select: { email: true },
+        },
+      },
+    });
+
+    return NextResponse.json({ myExams, publicExams });
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

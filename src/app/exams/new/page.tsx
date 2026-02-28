@@ -99,7 +99,7 @@ export default function NewExamPage() {
     }
   }
 
-  async function createExam() {
+  async function createExam(startAfterCreate: boolean = false) {
     setSaving(true);
     setError(null);
 
@@ -118,7 +118,11 @@ export default function NewExamPage() {
         throw new Error(payload.error ?? "Failed to create exam");
       }
 
-      router.push(`/exams/${payload.exam.id}/attempt`);
+      if (startAfterCreate) {
+        router.push(`/exams/${payload.exam.id}/attempt`);
+      } else {
+        router.push("/dashboard");
+      }
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Failed to create exam");
       setSaving(false);
@@ -275,38 +279,64 @@ export default function NewExamPage() {
         </div>
       )}
 
-      {/* Create Button */}
-      <button
-        type="button"
-        onClick={() => void createExam()}
-        disabled={parsing || saving || !title || !imagePath || parsedAnswerCount === 0}
-        className="w-full rounded-xl bg-[#c9784e] px-6 py-4 text-lg font-semibold text-white shadow-sm hover:bg-[#b5673f] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-      >
-        {parsing ? (
-          <span className="flex items-center justify-center gap-2">
-            <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-            Processing...
-          </span>
-        ) : saving ? (
-          <span className="flex items-center justify-center gap-2">
-            <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-            Creating Exam...
-          </span>
-        ) : (
-          <span className="flex items-center justify-center gap-2">
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            Create & Start Exam
-          </span>
-        )}
-      </button>
+      {/* Create Buttons */}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <button
+          type="button"
+          onClick={() => void createExam(false)}
+          disabled={parsing || saving || !title || !imagePath || parsedAnswerCount === 0}
+          className="flex-1 rounded-xl border border-[#e8ddd4] bg-white px-6 py-4 text-lg font-semibold text-[#3d3029] shadow-sm hover:border-[#c9784e] hover:bg-[#f9ebe4] hover:text-[#c9784e] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
+        >
+          {saving ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Saving...
+            </span>
+          ) : (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Create Exam
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => void createExam(true)}
+          disabled={parsing || saving || !title || !imagePath || parsedAnswerCount === 0}
+          className="flex-1 rounded-xl bg-[#c9784e] px-6 py-4 text-lg font-semibold text-white shadow-sm hover:bg-[#b5673f] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
+        >
+          {parsing ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Processing...
+            </span>
+          ) : saving ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Creating...
+            </span>
+          ) : (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Create & Start Exam
+            </span>
+          )}
+        </button>
+      </div>
     </main>
   );
 }

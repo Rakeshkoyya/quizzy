@@ -17,8 +17,12 @@ export async function POST(request: Request, { params }: { params: Params }) {
     const { id } = await params;
     const body = submitAttemptSchema.parse(await request.json());
 
+    // Allow access to own exams or public exams
     const exam = await prisma.exam.findFirst({
-      where: { id, userId: user.id },
+      where: {
+        id,
+        OR: [{ userId: user.id }, { isPublic: true }],
+      },
     });
 
     if (!exam) {

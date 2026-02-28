@@ -12,8 +12,12 @@ export default async function AttemptPage({ params }: { params: Params }) {
   const user = await requireUser();
   const { id } = await params;
 
+  // Allow access to own exams or public exams
   const exam = await prisma.exam.findFirst({
-    where: { id, userId: user.id },
+    where: {
+      id,
+      OR: [{ userId: user.id }, { isPublic: true }],
+    },
   });
 
   if (!exam) {

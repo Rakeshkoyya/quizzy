@@ -24,11 +24,13 @@ model Exam {
   answerKey        Json
   imagePath        String
   userId           String        @db.Uuid
+  isPublic         Boolean       @default(false)
   createdAt        DateTime      @default(now())
   user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   attempts         ExamAttempt[]
 
   @@index([userId])
+  @@index([isPublic])
 }
 
 model ExamAttempt {
