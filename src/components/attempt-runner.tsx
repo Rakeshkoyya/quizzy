@@ -16,6 +16,7 @@ export function AttemptRunner({ exam }: AttemptRunnerProps) {
   const [remainingSeconds, setRemainingSeconds] = useState(exam.timeLimitMinutes * 60);
   const [answers, setAnswers] = useState<Record<string, AnswerOption>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const startedAtRef = useRef<string>(new Date().toISOString());
   const submittedRef = useRef(false);
@@ -81,6 +82,33 @@ export function AttemptRunner({ exam }: AttemptRunnerProps) {
 
   const goToPrevious = () => setCurrentIndex((prev) => Math.max(0, prev - 1));
   const goToNext = () => setCurrentIndex((prev) => Math.min(questionNumbers.length - 1, prev + 1));
+  const unansweredCount = questionNumbers.length - answeredCount;
+  const confirmMessage =
+    unansweredCount > 0
+      ? `You still have ${unansweredCount} unanswered question${unansweredCount === 1 ? "" : "s"}.`
+      : "You have answered all questions.";
+
+  const selectOption = (questionNumber: number, option: AnswerOption) => {
+    const questionKey = String(questionNumber);
+    setAnswers((prev) => {
+      if (prev[questionKey] === option) {
+        const nextAnswers = { ...prev };
+        delete nextAnswers[questionKey];
+        return nextAnswers;
+      }
+
+      return { ...prev, [questionKey]: option };
+    });
+  };
+
+  const handleManualSubmit = () => {
+    setShowSubmitConfirm(true);
+  };
+
+  const handleConfirmSubmit = () => {
+    setShowSubmitConfirm(false);
+    void submitAttempt();
+  };
 
   return (
     <div className="fixed inset-0 flex flex-col bg-[var(--background)]">
@@ -135,7 +163,7 @@ export function AttemptRunner({ exam }: AttemptRunnerProps) {
                     <button
                       key={option}
                       type="button"
-                      onClick={() => setAnswers((prev) => ({ ...prev, [String(currentQuestion)]: option }))}
+                      onClick={() => selectOption(currentQuestion, option)}
                       className={`group flex items-center gap-4 rounded-xl border-2 p-4 text-left transition-all ${
                         selected
                           ? "border-[var(--primary)] bg-[var(--primary-light)]"
@@ -199,7 +227,7 @@ export function AttemptRunner({ exam }: AttemptRunnerProps) {
 
               <button
                 type="button"
-                onClick={() => void submitAttempt()}
+                onClick={handleManualSubmit}
                 disabled={submitting}
                 className="inline-flex items-center gap-2 rounded-xl bg-[#c9784e] px-6 py-3 font-semibold text-white shadow-sm hover:bg-[#b5673f] disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -221,6 +249,35 @@ export function AttemptRunner({ exam }: AttemptRunnerProps) {
                 )}
               </button>
             </div>
+
+            {showSubmitConfirm && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+                <div className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-lg">
+                  <h3 className="text-lg font-semibold text-[var(--foreground)]">Confirm submission</h3>
+                  <p className="mt-2 text-sm text-[var(--muted)]">{confirmMessage}</p>
+                  <p className="mt-1 text-sm text-[var(--muted)]">Submit your exam now?</p>
+
+                  <div className="mt-6 flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowSubmitConfirm(false)}
+                      disabled={submitting}
+                      className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--secondary-light)] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmSubmit}
+                      disabled={submitting}
+                      className="rounded-xl bg-[#c9784e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#b5673f] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Submit Exam
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </main>
 
