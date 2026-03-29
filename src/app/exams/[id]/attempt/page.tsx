@@ -1,7 +1,8 @@
 import { AttemptRunner } from "@/components/attempt-runner";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import type { Exam } from "@/types/exam";
+import { getSignedUrl } from "@/lib/supabase-storage";
+import type { Exam, Question } from "@/types/exam";
 import { notFound } from "next/navigation";
 
 type Params = Promise<{ id: string }>;
@@ -12,11 +13,15 @@ export default async function AttemptPage({ params }: { params: Params }) {
   const user = await requireUser();
   const { id } = await params;
 
-  // Allow access to own exams or public exams
   const exam = await prisma.exam.findFirst({
     where: {
       id,
       OR: [{ userId: user.id }, { isPublic: true }],
+    },
+    include: {
+      questions: {
+        orderBy: { questionNumber: "asc" },
+      },
     },
   });
 
@@ -24,5 +29,23 @@ export default async function AttemptPage({ params }: { params: Params }) {
     notFound();
   }
 
-  return <AttemptRunner exam={exam as unknown as Exam} />;
+  // Generate signed URLs for question images
+  const questionsWithUrls: Question[] = await Promise.all(
+    (exam.questions || []).map(async (q) => ({
+      id: q.id,
+      examId: q.examId,
+      questionNumber: q.questionNumber,
+      imagePath: q.imagePath,
+      pageNumber: q.pageNumber,
+      imageUrl: await getSignedUrl("question-images", q.imagePath, 7200),
+    }))
+  );
+
+
+  const examData: Exam = {
+    ...(exam as unknown as Exam),
+    questions: questionsWithUrls,
+  };
+
+  return <AttemptRunner exam={examData} />;
 }

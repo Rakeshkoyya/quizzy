@@ -19,6 +19,10 @@ export default async function DashboardPage() {
         orderBy: { submittedAt: "desc" },
         take: 1,
       },
+      questions: {
+        orderBy: { questionNumber: "asc" },
+        select: { questionNumber: true, section: true },
+      },
     },
   });
 
@@ -142,7 +146,13 @@ export default async function DashboardPage() {
 
                   {/* Actions Row */}
                   <div className="flex items-center justify-between border-t border-[var(--border)] pt-4">
-                    <ExamCardActions examId={exam.id} isPublic={exam.isPublic} isOwner={true} />
+                    <ExamCardActions
+                      examId={exam.id}
+                      isPublic={exam.isPublic}
+                      isOwner={true}
+                      questionCount={exam.questionCount}
+                      questions={exam.questions}
+                    />
                     <span className="text-xs text-[var(--muted)]">
                       Created {exam.createdAt.toLocaleDateString()}
                     </span>
@@ -202,7 +212,7 @@ export default async function DashboardPage() {
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
-                        by {exam.user.email.split("@")[0]}
+                        by {exam.user.email?.split("@")[0] ?? "unknown"}
                       </span>
                     </div>
 

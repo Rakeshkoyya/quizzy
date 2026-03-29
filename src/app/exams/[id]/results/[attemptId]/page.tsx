@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getSignedUrl } from "@/lib/supabase-storage";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ResultsTabs } from "@/components/results-tabs";
@@ -18,11 +19,30 @@ export default async function ResultsPage({ params }: { params: Params }) {
       examId: id,
       userId: user.id,
     },
-    include: { exam: true },
+    include: {
+      exam: {
+        include: {
+          questions: {
+            orderBy: { questionNumber: "asc" },
+          },
+        },
+      },
+    },
   });
 
   if (!attempt) {
     notFound();
+  }
+
+  // Generate signed URLs for question images
+  const questionImageMap: Record<number, string> = {};
+  if (attempt.exam.questions) {
+    await Promise.all(
+      attempt.exam.questions.map(async (q) => {
+        const url = await getSignedUrl("question-images", q.imagePath, 7200);
+        questionImageMap[q.questionNumber] = url;
+      })
+    );
   }
 
   const wrongQuestions = attempt.wrongQuestions as Array<{
@@ -104,6 +124,7 @@ export default async function ResultsPage({ params }: { params: Params }) {
         correctCount={attempt.correctCount}
         wrongCount={attempt.wrongCount}
         unansweredCount={attempt.unansweredCount}
+        questionImageMap={questionImageMap}
       />
 
       {/* Actions */}

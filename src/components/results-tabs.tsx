@@ -23,6 +23,7 @@ interface ResultsTabsProps {
   correctCount: number;
   wrongCount: number;
   unansweredCount: number;
+  questionImageMap?: Record<number, string>;
 }
 
 export function ResultsTabs({
@@ -33,6 +34,7 @@ export function ResultsTabs({
   correctCount,
   wrongCount,
   unansweredCount,
+  questionImageMap = {},
 }: ResultsTabsProps) {
   const [activeTab, setActiveTab] = useState<Tab>("correct");
 
@@ -137,7 +139,12 @@ export function ResultsTabs({
                   <tbody className="divide-y divide-[#e8ddd4]">
                     {correctQuestions.map((row) => (
                       <tr key={row.questionNumber} className="bg-white">
-                        <td className="px-4 py-3 font-medium text-[#3d3029]">{row.questionNumber}</td>
+                        <td className="px-4 py-3 font-medium text-[#3d3029]">
+                          {row.questionNumber}
+                          {questionImageMap[row.questionNumber] && (
+                            <img src={questionImageMap[row.questionNumber]} alt={`Q${row.questionNumber}`} className="mt-2 max-w-xs rounded border border-[#e8ddd4]" />
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#eef4eb] text-sm font-semibold text-[#7a9a6d]">
                             {row.answer}
@@ -172,7 +179,12 @@ export function ResultsTabs({
                   <tbody className="divide-y divide-[#e8ddd4]">
                     {wrongQuestions.map((row) => (
                       <tr key={row.questionNumber} className="bg-white">
-                        <td className="px-4 py-3 font-medium text-[#3d3029]">{row.questionNumber}</td>
+                        <td className="px-4 py-3 font-medium text-[#3d3029]">
+                          {row.questionNumber}
+                          {questionImageMap[row.questionNumber] && (
+                            <img src={questionImageMap[row.questionNumber]} alt={`Q${row.questionNumber}`} className="mt-2 max-w-xs rounded border border-[#e8ddd4]" />
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#fceaea] text-sm font-semibold text-[#c45c5c]">
                             {row.yourAnswer}
@@ -211,7 +223,12 @@ export function ResultsTabs({
                   <tbody className="divide-y divide-[#e8ddd4]">
                     {unansweredQuestions.map((questionNumber) => (
                       <tr key={questionNumber} className="bg-white">
-                        <td className="px-4 py-3 font-medium text-[#3d3029]">{questionNumber}</td>
+                        <td className="px-4 py-3 font-medium text-[#3d3029]">
+                          {questionNumber}
+                          {questionImageMap[questionNumber] && (
+                            <img src={questionImageMap[questionNumber]} alt={`Q${questionNumber}`} className="mt-2 max-w-xs rounded border border-[#e8ddd4]" />
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#f5efe8] text-sm font-semibold text-[#8b7355]">
                             {answerKey[String(questionNumber)] || "?"}

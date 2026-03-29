@@ -7,8 +7,26 @@ import { z } from "zod";
 const createExamSchema = z.object({
   title: z.string().min(1).max(120),
   timeLimitMinutes: z.number().int().min(1).max(300),
-  imagePath: z.string().min(1),
   answerKey: z.record(z.string(), z.string()),
+  solutionsJson: z.record(z.string(), z.string()).optional(),
+  questions: z.array(z.object({
+    questionNumber: z.number().int().min(1),
+    imagePath: z.string().min(1),
+    pageNumber: z.number().int().min(1),
+    subject: z.string().optional(),
+    section: z.string().optional(),
+    cropX: z.number().optional(),
+    cropY: z.number().optional(),
+    cropW: z.number().optional(),
+    cropH: z.number().optional(),
+  })).optional(),
+  pages: z.array(z.object({
+    pageNumber: z.number().int().min(1),
+    imagePath: z.string().min(1),
+    width: z.number().int().min(1),
+    height: z.number().int().min(1),
+  })).optional(),
+  questionPdfPath: z.string().optional(),
 });
 
 export async function GET() {
@@ -71,11 +89,38 @@ export async function POST(request: Request) {
       data: {
         title: body.title,
         timeLimitMinutes: body.timeLimitMinutes,
-        imagePath: body.imagePath,
         answerKey,
+        solutionsJson: body.solutionsJson ?? undefined,
         questionCount: Math.max(...questionNumbers),
         userId: user.id,
+        questionPdfPath: body.questionPdfPath ?? null,
+        ...(body.questions && body.questions.length > 0 && {
+          questions: {
+            create: body.questions.map((q) => ({
+              questionNumber: q.questionNumber,
+              imagePath: q.imagePath,
+              pageNumber: q.pageNumber,
+              subject: q.subject ?? null,
+              section: q.section ?? null,
+              cropX: q.cropX ?? null,
+              cropY: q.cropY ?? null,
+              cropW: q.cropW ?? null,
+              cropH: q.cropH ?? null,
+            })),
+          },
+        }),
+        ...(body.pages && body.pages.length > 0 && {
+          pages: {
+            create: body.pages.map((p) => ({
+              pageNumber: p.pageNumber,
+              imagePath: p.imagePath,
+              width: p.width,
+              height: p.height,
+            })),
+          },
+        }),
       },
+      include: { questions: true, pages: true },
     });
 
     return NextResponse.json({ exam });

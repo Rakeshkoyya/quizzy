@@ -1,22 +1,40 @@
-import { extractAnswerKeyFromImage } from "@/lib/google-vision";
+import { extractAnswerKeyFromBuffer, extractAnswerKeyFromImage } from "@/lib/google-vision";
 import { NextResponse } from "next/server";
-import { z } from "zod";
-
-const schema = z.object({
-  imageUrl: z.string().url(),
-});
 
 export async function POST(request: Request) {
   console.log("[ParseAPI] Received parse request");
   
   try {
-    const body = await request.json();
-    console.log("[ParseAPI] Request body:", { imageUrl: body.imageUrl?.substring(0, 50) + "..." });
-    
-    const parsed = schema.parse(body);
-    console.log("[ParseAPI] Extracting answer key from image using Gemini...");
-    
-    const answerKey = await extractAnswerKeyFromImage(parsed.imageUrl);
+    const contentType = request.headers.get("content-type") ?? "";
+
+    let answerKey;
+
+    if (contentType.includes("multipart/form-data")) {
+      // File upload flow (new v2 flow)
+      const formData = await request.formData();
+      const file = formData.get("file") as File | null;
+
+      if (!file) {
+        return NextResponse.json({ error: "No file provided" }, { status: 400 });
+      }
+
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const mimeType = file.type || "image/png";
+      console.log("[ParseAPI] Extracting answer key from uploaded file using Gemini...");
+      answerKey = await extractAnswerKeyFromBuffer(buffer, mimeType);
+    } else {
+      // JSON flow (legacy — accepts imageUrl)
+      const body = await request.json();
+      const imageUrl = body.imageUrl;
+
+      if (!imageUrl || typeof imageUrl !== "string") {
+        return NextResponse.json({ error: "No imageUrl provided" }, { status: 400 });
+      }
+
+      console.log("[ParseAPI] Extracting answer key from URL using Gemini...");
+      answerKey = await extractAnswerKeyFromImage(imageUrl);
+    }
+
     console.log("[ParseAPI] Parsed answer key:", answerKey);
 
     if (Object.keys(answerKey).length === 0) {

@@ -8,45 +8,123 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// ── Auth.js models ──────────────────────────────────────────
+
 model User {
-  id        String        @id @db.Uuid
-  email     String        @unique
-  createdAt DateTime      @default(now())
-  exams     Exam[]
-  attempts  ExamAttempt[]
+  id            String        @id @default(cuid())
+  name          String?
+  email         String?       @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime      @default(now())
+  accounts      Account[]
+  sessions      Session[]
+  exams         Exam[]
+  attempts      ExamAttempt[]
 }
 
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ── App models ──────────────────────────────────────────────
+
 model Exam {
-  id               String        @id @default(uuid()) @db.Uuid
+  id               String        @id @default(cuid())
   title            String
   timeLimitMinutes Int
   questionCount    Int
   answerKey        Json
-  imagePath        String
-  userId           String        @db.Uuid
+  solutionsJson    Json?
+  imagePath        String?
+  questionPdfPath  String?
+  userId           String
   isPublic         Boolean       @default(false)
   createdAt        DateTime      @default(now())
   user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   attempts         ExamAttempt[]
+  questions        Question[]
+  pages            ExamPage[]
 
   @@index([userId])
   @@index([isPublic])
 }
 
+model Question {
+  id             String  @id @default(cuid())
+  examId         String
+  questionNumber Int
+  imagePath      String
+  pageNumber     Int
+  subject        String?
+  section        String?
+  cropX          Float?
+  cropY          Float?
+  cropW          Float?
+  cropH          Float?
+  exam           Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, questionNumber])
+  @@index([examId])
+}
+
+model ExamPage {
+  id         String @id @default(cuid())
+  examId     String
+  pageNumber Int
+  imagePath  String
+  width      Int
+  height     Int
+  exam       Exam   @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, pageNumber])
+  @@index([examId])
+}
+
 model ExamAttempt {
-  id              String   @id @default(uuid()) @db.Uuid
-  examId           String   @db.Uuid
-  userId           String   @db.Uuid
-  startedAt        DateTime
-  submittedAt      DateTime @default(now())
-  userAnswers      Json
-  correctCount     Int
-  wrongCount       Int
-  unansweredCount  Int
-  wrongQuestions   Json
+  id                 String   @id @default(cuid())
+  examId             String
+  userId             String
+  startedAt          DateTime
+  submittedAt        DateTime @default(now())
+  userAnswers        Json
+  correctCount       Int
+  wrongCount         Int
+  unansweredCount    Int
+  wrongQuestions     Json
   unansweredQuestions Json
-  exam             Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exam               Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([examId])
   @@index([userId])
