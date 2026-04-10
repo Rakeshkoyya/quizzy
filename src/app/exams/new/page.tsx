@@ -2,6 +2,7 @@
 
 import type { AnswerOption, QuestionBoundary, PageImage, PageAnalysisResult } from "@/types/exam";
 import { renderPdfPages, dataUrlToBlob } from "@/lib/pdf-processor";
+import { parseQuestionsText, parseAnswerKeyText, type ParsedTextQuestion } from "@/lib/exam";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useCallback } from "react";
@@ -9,6 +10,7 @@ import CropEditor from "@/components/crop-editor";
 import SectionEditor, { type SectionDefinition } from "@/components/section-editor";
 
 type ParsedAnswerKey = Record<string, AnswerOption>;
+type ImportMode = "pdf" | "text";
 
 interface ProcessedQuestion {
   questionNumber: number;
@@ -23,6 +25,9 @@ export default function NewExamPage() {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [timeLimitMinutes, setTimeLimitMinutes] = useState(60);
+  const [correctMarks, setCorrectMarks] = useState(4);
+  const [wrongMarks, setWrongMarks] = useState(-1);
+  const [unansweredMarks, setUnansweredMarks] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,8 +71,25 @@ export default function NewExamPage() {
   // Manual sections state
   const [manualSections, setManualSections] = useState<SectionDefinition[]>([]);
 
-  const questionsReady = processedQuestions.length > 0;
-  const canCreate = title && questionsReady && parsedAnswerCount > 0;
+  // Import mode state
+  const [importMode, setImportMode] = useState<ImportMode>("pdf");
+
+  // Text import state
+  const [questionsTextInput, setQuestionsTextInput] = useState("");
+  const [answerKeyTextInput, setAnswerKeyTextInput] = useState("");
+  const [parsedTextQuestions, setParsedTextQuestions] = useState<ParsedTextQuestion[]>([]);
+
+  const textQuestionsReady = parsedTextQuestions.length > 0;
+
+  const textAnswerKey = useMemo(() => {
+    return parseAnswerKeyText(answerKeyTextInput);
+  }, [answerKeyTextInput]);
+
+  const textAnswerCount = Object.keys(textAnswerKey).length;
+
+  const questionsReady = importMode === "pdf" ? processedQuestions.length > 0 : textQuestionsReady;
+  const effectiveAnswerCount = importMode === "pdf" ? parsedAnswerCount : textAnswerCount;
+  const canCreate = title && questionsReady && effectiveAnswerCount > 0;
 
   // ── Analyze a single page via API ──
   const analyzePage = useCallback(async (page: PageImage): Promise<PageAnalysisResult> => {
@@ -357,94 +379,167 @@ export default function NewExamPage() {
     }
   }
 
+  // ── Text Import: Parse questions text ──
+  function handleParseQuestionsText(text: string) {
+    setQuestionsTextInput(text);
+    const parsed = parseQuestionsText(text);
+    setParsedTextQuestions(parsed);
+  }
+
+  // ── Text Import: Upload questions text file ──
+  function handleQuestionsTextFile(file: File) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      handleParseQuestionsText(text);
+    };
+    reader.readAsText(file);
+  }
+
+  // ── Text Import: Upload answer key text file ──
+  function handleAnswerKeyTextFile(file: File) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      setAnswerKeyTextInput(text);
+    };
+    reader.readAsText(file);
+  }
+
   // ── Step 3: Create Exam (finalize upload + create) ──
   async function createExam(startAfterCreate = false) {
     setSaving(true);
     setError(null);
 
     try {
-      const answerKey = JSON.parse(answerKeyText) as ParsedAnswerKey;
-
-      // First upload temp files to Supabase to get real storage paths
-      const uploadResponse = await fetch("/api/finalize-upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tempExamId,
-          questions: processedQuestions,
-          solutionPages: solutionPageNumbers,
-          pageImages: questionPages.map((p) => ({
-            pageNumber: p.pageNumber,
-            width: p.width,
-            height: p.height,
-          })),
-          boundaries: boundaries.map((b) => ({
-            questionNumber: b.questionNumber,
-            pageNumber: b.pageNumber,
-            xStartFraction: b.xStartFraction,
-            xEndFraction: b.xEndFraction,
-            yStartFraction: b.yStartFraction,
-            yEndFraction: b.yEndFraction,
-          })),
-        }),
-      });
-
-      const uploadPayload = (await uploadResponse.json()) as {
-        questions?: Array<{ questionNumber: number; imagePath: string; subject?: string; section?: string }>;
-        pages?: Array<{ pageNumber: number; imagePath: string; width: number; height: number }>;
-        cropData?: Array<{ questionNumber: number; cropX: number; cropY: number; cropW: number; cropH: number }>;
-        error?: string;
-      };
-
-      if (!uploadResponse.ok || !uploadPayload.questions) {
-        throw new Error(uploadPayload.error ?? "Failed to upload images");
-      }
-
-      // Now create the exam with real image paths
-      // Apply manual sections to questions
-      const getSectionForQuestion = (qNum: number): string | undefined => {
-        for (const sec of manualSections) {
-          if (sec.name && qNum >= sec.fromQuestion && qNum <= sec.toQuestion) {
-            return sec.name;
-          }
+      if (importMode === "text") {
+        // ── Text-based exam creation (no image upload needed) ──
+        const answerKeyObj: ParsedAnswerKey = {};
+        for (const [k, v] of Object.entries(textAnswerKey)) {
+          answerKeyObj[String(k)] = v;
         }
-        return undefined;
-      };
 
-      const examResponse = await fetch("/api/exams", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          timeLimitMinutes,
-          answerKey,
-          solutionsJson: solutionsDetected ? extractedSolutions : undefined,
-          questions: uploadPayload.questions.map((q) => {
-            const crop = uploadPayload.cropData?.find((c) => c.questionNumber === q.questionNumber);
-            return {
+        const examResponse = await fetch("/api/exams", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            timeLimitMinutes,
+            answerKey: answerKeyObj,
+            questionType: "text",
+            correctMarks,
+            wrongMarks,
+            unansweredMarks,
+            questions: parsedTextQuestions.map((q) => ({
               questionNumber: q.questionNumber,
-              imagePath: q.imagePath,
-              pageNumber: boundaries.find((b) => b.questionNumber === q.questionNumber)?.pageNumber ?? 1,
-              section: getSectionForQuestion(q.questionNumber),
-              cropX: crop?.cropX,
-              cropY: crop?.cropY,
-              cropW: crop?.cropW,
-              cropH: crop?.cropH,
-            };
+              questionText: q.questionText,
+              optionA: q.optionA,
+              optionB: q.optionB,
+              optionC: q.optionC,
+              optionD: q.optionD,
+            })),
           }),
-          pages: uploadPayload.pages,
-        }),
-      });
+        });
 
-      const examPayload = (await examResponse.json()) as { exam?: { id: string }; error?: string };
-      if (!examResponse.ok || !examPayload.exam) {
-        throw new Error(examPayload.error ?? "Failed to create exam");
-      }
+        const examPayload = (await examResponse.json()) as { exam?: { id: string }; error?: string };
+        if (!examResponse.ok || !examPayload.exam) {
+          throw new Error(examPayload.error ?? "Failed to create exam");
+        }
 
-      if (startAfterCreate) {
-        router.push(`/exams/${examPayload.exam.id}/attempt`);
+        if (startAfterCreate) {
+          router.push(`/exams/${examPayload.exam.id}/attempt`);
+        } else {
+          router.push("/dashboard");
+        }
       } else {
-        router.push("/dashboard");
+        // ── Image-based exam creation (existing PDF flow) ──
+        const answerKey = JSON.parse(answerKeyText) as ParsedAnswerKey;
+
+        // First upload temp files to Supabase to get real storage paths
+        const uploadResponse = await fetch("/api/finalize-upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tempExamId,
+            questions: processedQuestions,
+            solutionPages: solutionPageNumbers,
+            pageImages: questionPages.map((p) => ({
+              pageNumber: p.pageNumber,
+              width: p.width,
+              height: p.height,
+            })),
+            boundaries: boundaries.map((b) => ({
+              questionNumber: b.questionNumber,
+              pageNumber: b.pageNumber,
+              xStartFraction: b.xStartFraction,
+              xEndFraction: b.xEndFraction,
+              yStartFraction: b.yStartFraction,
+              yEndFraction: b.yEndFraction,
+            })),
+          }),
+        });
+
+        const uploadPayload = (await uploadResponse.json()) as {
+          questions?: Array<{ questionNumber: number; imagePath: string; subject?: string; section?: string }>;
+          pages?: Array<{ pageNumber: number; imagePath: string; width: number; height: number }>;
+          cropData?: Array<{ questionNumber: number; cropX: number; cropY: number; cropW: number; cropH: number }>;
+          error?: string;
+        };
+
+        if (!uploadResponse.ok || !uploadPayload.questions) {
+          throw new Error(uploadPayload.error ?? "Failed to upload images");
+        }
+
+        // Now create the exam with real image paths
+        // Apply manual sections to questions
+        const getSectionForQuestion = (qNum: number): string | undefined => {
+          for (const sec of manualSections) {
+            if (sec.name && qNum >= sec.fromQuestion && qNum <= sec.toQuestion) {
+              return sec.name;
+            }
+          }
+          return undefined;
+        };
+
+        const examResponse = await fetch("/api/exams", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            timeLimitMinutes,
+            answerKey,
+            questionType: "image",
+            correctMarks,
+            wrongMarks,
+            unansweredMarks,
+            solutionsJson: solutionsDetected ? extractedSolutions : undefined,
+            questions: uploadPayload.questions.map((q) => {
+              const crop = uploadPayload.cropData?.find((c) => c.questionNumber === q.questionNumber);
+              return {
+                questionNumber: q.questionNumber,
+                imagePath: q.imagePath,
+                pageNumber: boundaries.find((b) => b.questionNumber === q.questionNumber)?.pageNumber ?? 1,
+                section: getSectionForQuestion(q.questionNumber),
+                cropX: crop?.cropX,
+                cropY: crop?.cropY,
+                cropW: crop?.cropW,
+                cropH: crop?.cropH,
+              };
+            }),
+            pages: uploadPayload.pages,
+          }),
+        });
+
+        const examPayload = (await examResponse.json()) as { exam?: { id: string }; error?: string };
+        if (!examResponse.ok || !examPayload.exam) {
+          throw new Error(examPayload.error ?? "Failed to create exam");
+        }
+
+        if (startAfterCreate) {
+          router.push(`/exams/${examPayload.exam.id}/attempt`);
+        } else {
+          router.push("/dashboard");
+        }
       }
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Failed to create exam");
@@ -466,7 +561,7 @@ export default function NewExamPage() {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-[var(--foreground)]">Create New Exam</h1>
-          <p className="mt-1 text-[var(--muted)]">Upload a questions PDF and answer key to get started</p>
+          <p className="mt-1 text-[var(--muted)]">Upload questions as PDF or paste text to get started</p>
         </div>
         <Link
           href="/dashboard"
@@ -479,6 +574,45 @@ export default function NewExamPage() {
         </Link>
       </header>
 
+      {/* Import Mode Toggle */}
+      <div className="flex gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] p-1.5">
+        <button
+          type="button"
+          onClick={() => setImportMode("pdf")}
+          className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${
+            importMode === "pdf"
+              ? "bg-[#c9784e] text-white shadow-sm"
+              : "text-[var(--muted)] hover:bg-[var(--secondary-light)] hover:text-[var(--foreground)]"
+          }`}
+        >
+          <span className="flex items-center justify-center gap-2">
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            PDF Upload
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setImportMode("text")}
+          className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${
+            importMode === "text"
+              ? "bg-[#c9784e] text-white shadow-sm"
+              : "text-[var(--muted)] hover:bg-[var(--secondary-light)] hover:text-[var(--foreground)]"
+          }`}
+        >
+          <span className="flex items-center justify-center gap-2">
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Text Import
+          </span>
+        </button>
+      </div>
+
+      {/* ── PDF MODE ── */}
+      {importMode === "pdf" && (
+        <>
       {/* Step 1: Upload Questions PDF */}
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
         <div className="mb-4 flex items-center gap-3">
@@ -768,11 +902,158 @@ export default function NewExamPage() {
           </div>
         )}
       </section>
+        </>
+      )}
+
+      {/* ── TEXT MODE ── */}
+      {importMode === "text" && (
+        <>
+          {/* Step 1: Questions Text Input */}
+          <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-3">
+              <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${textQuestionsReady ? "bg-[var(--success)] text-white" : "bg-[#c9784e] text-white"}`}>
+                1
+              </div>
+              <h2 className="text-lg font-semibold text-[var(--foreground)]">Questions (Text)</h2>
+              {textQuestionsReady && (
+                <span className="rounded-full bg-[var(--success-light)] px-3 py-1 text-sm font-medium text-[var(--success)]">
+                  {parsedTextQuestions.length} questions parsed
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              {/* Upload text file */}
+              <div className="flex items-center gap-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-sm font-medium text-[var(--primary)] hover:bg-[var(--secondary-light)]">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  Upload .txt file
+                  <input
+                    type="file"
+                    accept=".txt,.text,text/plain"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleQuestionsTextFile(file);
+                    }}
+                  />
+                </label>
+                <span className="text-sm text-[var(--muted)]">or paste below</span>
+              </div>
+
+              <textarea
+                value={questionsTextInput}
+                onChange={(e) => handleParseQuestionsText(e.target.value)}
+                rows={12}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] p-4 font-mono text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-light)]"
+                placeholder={`Paste your questions here. Format:\n\nQ1. Which period does the chapter focus on?\nA) Ancient Period\nB) Medieval Period\nC) Modern Period\nD) Prehistoric Period\n\nQ2. The Medieval Period spans:\nA) 100 CE to 700 CE\nB) 500 CE to 1200 CE\nC) 700 CE to 1800 CE\nD) 1800 CE to 1947 CE`}
+              />
+            </div>
+
+            {/* Parsed Questions Preview */}
+            {textQuestionsReady && (
+              <div className="mt-4">
+                <p className="mb-2 text-sm font-medium text-[var(--muted)]">
+                  Preview ({parsedTextQuestions.length} questions):
+                </p>
+                <div className="max-h-96 space-y-3 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--background)] p-4">
+                  {parsedTextQuestions.map((q) => (
+                    <div key={q.questionNumber} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
+                      <p className="mb-2 text-sm font-semibold text-[var(--primary)]">
+                        Q{q.questionNumber}. {q.questionText}
+                      </p>
+                      <div className="grid grid-cols-1 gap-1 text-sm text-[var(--foreground)] sm:grid-cols-2">
+                        <p><span className="font-medium text-[var(--muted)]">A)</span> {q.optionA}</p>
+                        <p><span className="font-medium text-[var(--muted)]">B)</span> {q.optionB}</p>
+                        <p><span className="font-medium text-[var(--muted)]">C)</span> {q.optionC}</p>
+                        <p><span className="font-medium text-[var(--muted)]">D)</span> {q.optionD}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Step 2: Answer Key Text Input */}
+          <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-3">
+              <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
+                textAnswerCount > 0
+                  ? "bg-[var(--success)] text-white"
+                  : textQuestionsReady
+                    ? "bg-[#c9784e] text-white"
+                    : "bg-[#f5efe8] text-[#9a8b7a]"
+              }`}>
+                2
+              </div>
+              <h2 className="text-lg font-semibold text-[var(--foreground)]">Answer Key (Text)</h2>
+              {textAnswerCount > 0 && (
+                <span className="rounded-full bg-[var(--success-light)] px-3 py-1 text-sm font-medium text-[var(--success)]">
+                  {textAnswerCount} answers parsed
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              {/* Upload text file */}
+              <div className="flex items-center gap-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-sm font-medium text-[var(--primary)] hover:bg-[var(--secondary-light)]">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  Upload .txt file
+                  <input
+                    type="file"
+                    accept=".txt,.text,text/plain"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleAnswerKeyTextFile(file);
+                    }}
+                  />
+                </label>
+                <span className="text-sm text-[var(--muted)]">or paste below</span>
+              </div>
+
+              <textarea
+                value={answerKeyTextInput}
+                onChange={(e) => setAnswerKeyTextInput(e.target.value)}
+                rows={8}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] p-4 font-mono text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-light)]"
+                placeholder={`Paste your answer key here. Format:\n\n1. B\n2. C\n3. C\n4. D\n5. C`}
+              />
+            </div>
+
+            {/* Parsed answers preview */}
+            {textAnswerCount > 0 && (
+              <div className="mt-4">
+                <p className="mb-2 text-sm font-medium text-[var(--muted)]">Parsed answers:</p>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(textAnswerKey)
+                    .sort(([a], [b]) => Number(a) - Number(b))
+                    .map(([num, ans]) => (
+                      <span
+                        key={num}
+                        className="inline-flex items-center gap-1 rounded-lg bg-[var(--secondary-light)] px-2.5 py-1 text-sm"
+                      >
+                        <span className="font-medium text-[var(--foreground)]">Q{num}</span>
+                        <span className="font-semibold text-[var(--primary)]">{ans}</span>
+                      </span>
+                    ))}
+                </div>
+              </div>
+            )}
+          </section>
+        </>
+      )}
 
       {/* Step 3: Exam Details */}
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
         <div className="mb-4 flex items-center gap-3">
-          <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${title ? "bg-[var(--success)] text-white" : parsedAnswerCount > 0 ? "bg-[#c9784e] text-white" : "bg-[#f5efe8] text-[#9a8b7a]"}`}>
+          <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${title ? "bg-[var(--success)] text-white" : effectiveAnswerCount > 0 ? "bg-[#c9784e] text-white" : "bg-[#f5efe8] text-[#9a8b7a]"}`}>
             3
           </div>
           <h2 className="text-lg font-semibold text-[var(--foreground)]">Exam Details</h2>
@@ -799,6 +1080,48 @@ export default function NewExamPage() {
               className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--foreground)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-light)]"
             />
           </div>
+        </div>
+
+        {/* Scoring System */}
+        <div className="mt-5">
+          <h3 className="mb-3 text-sm font-semibold text-[var(--foreground)]">Scoring System</h3>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">Correct Answer Marks</label>
+              <input
+                type="number"
+                step="0.25"
+                min={0}
+                value={correctMarks}
+                onChange={(e) => setCorrectMarks(Number(e.target.value))}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--foreground)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-light)]"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">Wrong Answer Marks</label>
+              <input
+                type="number"
+                step="0.25"
+                max={0}
+                value={wrongMarks}
+                onChange={(e) => setWrongMarks(Number(e.target.value))}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--foreground)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-light)]"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">Unanswered Marks</label>
+              <input
+                type="number"
+                step="0.25"
+                value={unansweredMarks}
+                onChange={(e) => setUnansweredMarks(Number(e.target.value))}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--foreground)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-light)]"
+              />
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-[var(--muted)]">
+            Default: +{correctMarks} correct, {wrongMarks} wrong, {unansweredMarks} unanswered
+          </p>
         </div>
       </section>
 

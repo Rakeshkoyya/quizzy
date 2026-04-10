@@ -1,6 +1,66 @@
 export type AnswerOption = "A" | "B" | "C" | "D";
 export type AnswerKeyMap = Record<number, AnswerOption>;
 
+export interface ParsedTextQuestion {
+  questionNumber: number;
+  questionText: string;
+  optionA: string;
+  optionB: string;
+  optionC: string;
+  optionD: string;
+}
+
+/**
+ * Parse text-format questions like:
+ * Q1. Which period does the chapter focus on?
+ * A) Ancient Period
+ * B) Medieval Period
+ * C) Modern Period
+ * D) Prehistoric Period
+ */
+export function parseQuestionsText(input: string): ParsedTextQuestion[] {
+  const results: ParsedTextQuestion[] = [];
+
+  // Split into question blocks: each starts with Q<number> or just a number
+  const blocks = input.split(/(?=(?:^|\n)\s*(?:Q|q)?\s*\d{1,4}\s*[.):\-])/);
+
+  for (const block of blocks) {
+    const trimmed = block.trim();
+    if (!trimmed) continue;
+
+    // Extract question number and text
+    const headerMatch = trimmed.match(/^(?:Q|q)?\s*(\d{1,4})\s*[.):\-]\s*([\s\S]*?)(?=\n\s*[AaBb]\s*[.):\-])/);
+    if (!headerMatch) continue;
+
+    const questionNumber = Number(headerMatch[1]);
+    const questionText = headerMatch[2].trim();
+
+    // Extract options A-D
+    const optionA = extractOption(trimmed, "A");
+    const optionB = extractOption(trimmed, "B");
+    const optionC = extractOption(trimmed, "C");
+    const optionD = extractOption(trimmed, "D");
+
+    if (questionNumber > 0 && questionText && optionA && optionB && optionC && optionD) {
+      results.push({ questionNumber, questionText, optionA, optionB, optionC, optionD });
+    }
+  }
+
+  results.sort((a, b) => a.questionNumber - b.questionNumber);
+  return results;
+}
+
+function extractOption(block: string, letter: string): string {
+  const nextLetters: Record<string, string> = { A: "B", B: "C", C: "D", D: "" };
+  const next = nextLetters[letter];
+  const pattern = next
+    ? new RegExp(`${letter}\\s*[.):\\-]\\s*([\\s\\S]*?)(?=\\n\\s*${next}\\s*[.):\\-])`, "i")
+    : new RegExp(`${letter}\\s*[.):\\-]\\s*([\\s\\S]*?)$`, "i");
+
+  const match = block.match(pattern);
+  return match ? match[1].trim() : "";
+}
+
 export function parseAnswerKeyText(input: string): AnswerKeyMap {
   const cleaned = input
     .toUpperCase()

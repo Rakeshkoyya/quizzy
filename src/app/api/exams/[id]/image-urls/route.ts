@@ -29,6 +29,7 @@ export async function GET(_: Request, { params }: { params: Params }) {
 
     const questionUrls: Record<number, string> = {};
     for (const q of exam.questions) {
+      if (!q.imagePath) continue;
       try {
         questionUrls[q.questionNumber] = await getSignedUrl("question-images", q.imagePath, 3600);
       } catch {

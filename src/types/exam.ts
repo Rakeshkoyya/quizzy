@@ -5,7 +5,7 @@ export interface Question {
   id: string;
   examId: string;
   questionNumber: number;
-  imagePath: string;
+  imagePath?: string | null;
   imageUrl?: string;
   pageNumber: number;
   subject?: string;
@@ -14,6 +14,11 @@ export interface Question {
   cropY?: number | null;
   cropW?: number | null;
   cropH?: number | null;
+  questionText?: string | null;
+  optionA?: string | null;
+  optionB?: string | null;
+  optionC?: string | null;
+  optionD?: string | null;
 }
 
 export interface ExamPage {
@@ -34,7 +39,11 @@ export interface Exam {
   answerKey: AnswerKey;
   imagePath: string | null;
   questionPdfPath: string | null;
+  questionType: "image" | "text";
   solutionsJson: Record<string, string> | null;
+  correctMarks: number;
+  wrongMarks: number;
+  unansweredMarks: number;
   userId: string;
   isPublic: boolean;
   createdAt: string;

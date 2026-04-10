@@ -29,7 +29,7 @@ export default async function AttemptPage({ params }: { params: Params }) {
     notFound();
   }
 
-  // Generate signed URLs for question images
+  // Generate signed URLs for question images (only for image-based questions)
   const questionsWithUrls: Question[] = await Promise.all(
     (exam.questions || []).map(async (q) => ({
       id: q.id,
@@ -37,7 +37,12 @@ export default async function AttemptPage({ params }: { params: Params }) {
       questionNumber: q.questionNumber,
       imagePath: q.imagePath,
       pageNumber: q.pageNumber,
-      imageUrl: await getSignedUrl("question-images", q.imagePath, 7200),
+      questionText: q.questionText,
+      optionA: q.optionA,
+      optionB: q.optionB,
+      optionC: q.optionC,
+      optionD: q.optionD,
+      imageUrl: q.imagePath ? await getSignedUrl("question-images", q.imagePath, 7200) : undefined,
     }))
   );
 

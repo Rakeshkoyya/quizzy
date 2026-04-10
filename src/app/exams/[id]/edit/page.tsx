@@ -10,7 +10,11 @@ import type { Question, ExamPage, QuestionBoundary, PageImage } from "@/types/ex
 interface ExamData {
   id: string;
   title: string;
+  timeLimitMinutes: number;
   questionCount: number;
+  correctMarks: number;
+  wrongMarks: number;
+  unansweredMarks: number;
   userId: string;
   user: { id: string; email: string };
   questions: Question[];
@@ -38,6 +42,13 @@ export default function EditExamPage() {
   // Section editing state
   const [sections, setSections] = useState<SectionDefinition[]>([]);
 
+  // Exam details editing state
+  const [editTitle, setEditTitle] = useState("");
+  const [editTimeLimitMinutes, setEditTimeLimitMinutes] = useState(60);
+  const [editCorrectMarks, setEditCorrectMarks] = useState(4);
+  const [editWrongMarks, setEditWrongMarks] = useState(-1);
+  const [editUnansweredMarks, setEditUnansweredMarks] = useState(0);
+
   // Local crop overrides (before saving)
   const [cropOverrides, setCropOverrides] = useState<
     Record<number, { cropX: number; cropY: number; cropW: number; cropH: number }>
@@ -53,6 +64,13 @@ export default function EditExamPage() {
         }
         const data = (await response.json()) as { exam: ExamData };
         setExam(data.exam);
+
+        // Initialize editable fields
+        setEditTitle(data.exam.title);
+        setEditTimeLimitMinutes(data.exam.timeLimitMinutes);
+        setEditCorrectMarks(data.exam.correctMarks ?? 4);
+        setEditWrongMarks(data.exam.wrongMarks ?? -1);
+        setEditUnansweredMarks(data.exam.unansweredMarks ?? 0);
 
         // Build initial sections from question data
         const sectionMap = new Map<string, { min: number; max: number }>();
@@ -184,6 +202,11 @@ export default function EditExamPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          title: editTitle,
+          timeLimitMinutes: editTimeLimitMinutes,
+          correctMarks: editCorrectMarks,
+          wrongMarks: editWrongMarks,
+          unansweredMarks: editUnansweredMarks,
           sections: sections
             .filter((s) => s.name.trim())
             .map((s) => ({
@@ -205,6 +228,11 @@ export default function EditExamPage() {
       if (refreshResponse.ok) {
         const refreshData = (await refreshResponse.json()) as { exam: ExamData };
         setExam(refreshData.exam);
+        setEditTitle(refreshData.exam.title);
+        setEditTimeLimitMinutes(refreshData.exam.timeLimitMinutes);
+        setEditCorrectMarks(refreshData.exam.correctMarks ?? 4);
+        setEditWrongMarks(refreshData.exam.wrongMarks ?? -1);
+        setEditUnansweredMarks(refreshData.exam.unansweredMarks ?? 0);
       }
 
       // Refresh image URLs if we re-cropped
@@ -267,7 +295,12 @@ export default function EditExamPage() {
   const editingBoundary = editingQ ? getEditBoundary(editingQ) : null;
   const editingPageImage = editingQ ? pageImages[editingQ.pageNumber] ?? null : null;
 
-  const hasChanges = Object.keys(cropOverrides).length > 0;
+  const hasChanges = Object.keys(cropOverrides).length > 0
+    || (exam && editTitle !== exam.title)
+    || (exam && editTimeLimitMinutes !== exam.timeLimitMinutes)
+    || (exam && editCorrectMarks !== (exam.correctMarks ?? 4))
+    || (exam && editWrongMarks !== (exam.wrongMarks ?? -1))
+    || (exam && editUnansweredMarks !== (exam.unansweredMarks ?? 0));
   const hasPages = exam && exam.pages.length > 0;
 
   if (loading) {
@@ -305,7 +338,7 @@ export default function EditExamPage() {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-[var(--foreground)]">Edit Exam</h1>
-          <p className="mt-1 text-[var(--muted)]">{exam.title}</p>
+          <p className="mt-1 text-[var(--muted)]">{editTitle || exam.title}</p>
         </div>
         <div className="flex items-center gap-3">
           <Link
@@ -345,6 +378,75 @@ export default function EditExamPage() {
           {error}
         </div>
       )}
+
+      {/* Exam Details */}
+      <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold text-[var(--foreground)]">Exam Details</h2>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Exam Title</label>
+            <input
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-4 py-3 text-[var(--foreground)] placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-light)]"
+              placeholder="e.g., Biology Chapter 5 Quiz"
+            />
+          </div>
+          <div>
+            <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Time Limit (minutes)</label>
+            <input
+              type="number"
+              min={1}
+              max={300}
+              value={editTimeLimitMinutes}
+              onChange={(e) => setEditTimeLimitMinutes(Number(e.target.value))}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-4 py-3 text-[var(--foreground)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-light)]"
+            />
+          </div>
+        </div>
+
+        {/* Scoring System */}
+        <div className="mt-5">
+          <h3 className="mb-3 text-sm font-semibold text-[var(--foreground)]">Scoring System</h3>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">Correct Answer Marks</label>
+              <input
+                type="number"
+                step="0.25"
+                min={0}
+                value={editCorrectMarks}
+                onChange={(e) => setEditCorrectMarks(Number(e.target.value))}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-4 py-3 text-[var(--foreground)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-light)]"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">Wrong Answer Marks</label>
+              <input
+                type="number"
+                step="0.25"
+                max={0}
+                value={editWrongMarks}
+                onChange={(e) => setEditWrongMarks(Number(e.target.value))}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-4 py-3 text-[var(--foreground)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-light)]"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">Unanswered Marks</label>
+              <input
+                type="number"
+                step="0.25"
+                value={editUnansweredMarks}
+                onChange={(e) => setEditUnansweredMarks(Number(e.target.value))}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-4 py-3 text-[var(--foreground)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-light)]"
+              />
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-[var(--muted)]">
+            Current: +{editCorrectMarks} correct, {editWrongMarks} wrong, {editUnansweredMarks} unanswered
+          </p>
+        </div>
+      </section>
 
       {/* Sections Editor */}
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">

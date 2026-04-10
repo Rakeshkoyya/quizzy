@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSignedUrl } from "@/lib/supabase-storage";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ResultsTabs } from "@/components/results-tabs";
+import { ResultsReview } from "@/components/results-review";
 
 type Params = Promise<{ id: string; attemptId: string }>;
 
@@ -38,11 +38,33 @@ export default async function ResultsPage({ params }: { params: Params }) {
   const questionImageMap: Record<number, string> = {};
   if (attempt.exam.questions) {
     await Promise.all(
-      attempt.exam.questions.map(async (q) => {
-        const url = await getSignedUrl("question-images", q.imagePath, 7200);
-        questionImageMap[q.questionNumber] = url;
-      })
+      attempt.exam.questions
+        .filter((q) => q.imagePath)
+        .map(async (q) => {
+          const url = await getSignedUrl("question-images", q.imagePath!, 7200);
+          questionImageMap[q.questionNumber] = url;
+        })
     );
+  }
+
+  // Build question → section mapping
+  const questionSectionMap: Record<number, string> = {};
+  const questionTextMap: Record<number, { text: string; optionA?: string; optionB?: string; optionC?: string; optionD?: string }> = {};
+  if (attempt.exam.questions) {
+    for (const q of attempt.exam.questions) {
+      if (q.section) {
+        questionSectionMap[q.questionNumber] = q.section;
+      }
+      if (q.questionText) {
+        questionTextMap[q.questionNumber] = {
+          text: q.questionText,
+          optionA: q.optionA ?? undefined,
+          optionB: q.optionB ?? undefined,
+          optionC: q.optionC ?? undefined,
+          optionD: q.optionD ?? undefined,
+        };
+      }
+    }
   }
 
   const wrongQuestions = attempt.wrongQuestions as Array<{
@@ -56,9 +78,12 @@ export default async function ResultsPage({ params }: { params: Params }) {
   const totalQuestions = attempt.correctCount + attempt.wrongCount + attempt.unansweredCount;
   const scorePercent = Math.round((attempt.correctCount / totalQuestions) * 100);
 
-  // Calculate marks: +4 for correct, -1 for wrong, 0 for unanswered
-  const marksObtained = (attempt.correctCount * 4) + (attempt.wrongCount * -1);
-  const maxMarks = totalQuestions * 4;
+  // Use exam's scoring system
+  const correctMarks = (attempt.exam as Record<string, unknown>).correctMarks as number ?? 4;
+  const wrongPenalty = (attempt.exam as Record<string, unknown>).wrongMarks as number ?? -1;
+  const unansweredPenalty = (attempt.exam as Record<string, unknown>).unansweredMarks as number ?? 0;
+  const marksObtained = (attempt.correctCount * correctMarks) + (attempt.wrongCount * wrongPenalty) + (attempt.unansweredCount * unansweredPenalty);
+  const maxMarks = totalQuestions * correctMarks;
 
   // Calculate correct questions
   const wrongQuestionNumbers = new Set(wrongQuestions.map((q) => q.questionNumber));
@@ -73,50 +98,37 @@ export default async function ResultsPage({ params }: { params: Params }) {
     }));
 
   return (
-    <main className="space-y-8">
+    <main className="space-y-6">
       {/* Header */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-medium text-[#9a8b7a]">Exam Results</p>
           <h1 className="text-2xl font-semibold text-[#3d3029]">{attempt.exam.title}</h1>
         </div>
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-2 text-sm font-medium text-[#9a8b7a] hover:text-[#3d3029]"
-        >
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Back to dashboard
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/exams/${id}/attempt`}
+            className="inline-flex items-center gap-2 rounded-xl bg-[#c9784e] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#b5673f]"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Retake
+          </Link>
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-2 text-sm font-medium text-[#9a8b7a] hover:text-[#3d3029]"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Dashboard
+          </Link>
+        </div>
       </header>
 
-      {/* Score Summary */}
-      <section className="rounded-2xl border border-[#e8ddd4] bg-white p-8 text-center shadow-sm">
-        <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-[#f9ebe4]">
-          <span className="text-3xl font-bold text-[#c9784e]">{scorePercent}%</span>
-        </div>
-        <h2 className="text-xl font-semibold text-[#3d3029]">Your Score</h2>
-        <p className="mt-2 text-[#9a8b7a]">
-          You answered {attempt.correctCount} out of {totalQuestions} questions correctly
-        </p>
-        
-        {/* Marks Display */}
-        <div className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#f5efe8] px-4 py-2">
-          <span className={`text-2xl font-bold ${marksObtained >= 0 ? "text-[#7a9a6d]" : "text-[#c45c5c]"}`}>
-            {marksObtained}
-          </span>
-          <span className="text-lg text-[#9a8b7a]">/</span>
-          <span className="text-2xl font-bold text-[#3d3029]">{maxMarks}</span>
-          <span className="text-sm text-[#9a8b7a]">marks obtained</span>
-        </div>
-        <p className="mt-2 text-xs text-[#9a8b7a]">
-          (+4 per correct, -1 per wrong)
-        </p>
-      </section>
-
-      {/* Clickable Stats Cards & Results */}
-      <ResultsTabs
+      {/* Main Results Review */}
+      <ResultsReview
         correctQuestions={correctQuestions}
         wrongQuestions={wrongQuestions}
         unansweredQuestions={unansweredQuestions}
@@ -125,26 +137,14 @@ export default async function ResultsPage({ params }: { params: Params }) {
         wrongCount={attempt.wrongCount}
         unansweredCount={attempt.unansweredCount}
         questionImageMap={questionImageMap}
+        questionTextMap={questionTextMap}
+        questionSectionMap={questionSectionMap}
+        examTitle={attempt.exam.title}
+        scorePercent={scorePercent}
+        marksObtained={marksObtained}
+        maxMarks={maxMarks}
+        totalQuestions={totalQuestions}
       />
-
-      {/* Actions */}
-      <div className="flex flex-wrap gap-4">
-        <Link
-          href={`/exams/${id}/attempt`}
-          className="inline-flex items-center gap-2 rounded-xl bg-[#c9784e] px-6 py-3 font-medium text-white shadow-sm hover:bg-[#b5673f]"
-        >
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Retake Exam
-        </Link>
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-2 rounded-xl border border-[#e8ddd4] bg-white px-6 py-3 font-medium text-[#3d3029] hover:border-[#c9784e] hover:bg-[#f9ebe4] hover:text-[#c9784e]"
-        >
-          View All Exams
-        </Link>
-      </div>
     </main>
   );
 }

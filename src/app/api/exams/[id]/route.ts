@@ -8,6 +8,11 @@ import sharp from "sharp";
 type Params = Promise<{ id: string }>;
 
 const updateExamSchema = z.object({
+  title: z.string().min(1).max(120).optional(),
+  timeLimitMinutes: z.number().int().min(1).max(300).optional(),
+  correctMarks: z.number().min(0).max(100).optional(),
+  wrongMarks: z.number().min(-100).max(0).optional(),
+  unansweredMarks: z.number().min(-100).max(100).optional(),
   isPublic: z.boolean().optional(),
   sections: z.array(z.object({
     name: z.string().min(1),
@@ -75,6 +80,11 @@ export async function PATCH(request: Request, { params }: { params: Params }) {
     const updatedExam = await prisma.exam.update({
       where: { id },
       data: {
+        ...(body.title !== undefined && { title: body.title }),
+        ...(body.timeLimitMinutes !== undefined && { timeLimitMinutes: body.timeLimitMinutes }),
+        ...(body.correctMarks !== undefined && { correctMarks: body.correctMarks }),
+        ...(body.wrongMarks !== undefined && { wrongMarks: body.wrongMarks }),
+        ...(body.unansweredMarks !== undefined && { unansweredMarks: body.unansweredMarks }),
         ...(body.isPublic !== undefined && { isPublic: body.isPublic }),
       },
     });
@@ -147,6 +157,7 @@ export async function PATCH(request: Request, { params }: { params: Params }) {
           .toBuffer();
 
         // Upload the new cropped image (overwrite existing)
+        if (!question.imagePath) continue;
         await uploadFile("question-images", question.imagePath, croppedBuffer, "image/webp");
 
         // Update crop coordinates in DB

@@ -41,6 +41,7 @@ export function AttemptRunner({ exam }: AttemptRunnerProps) {
     (q) => q.questionNumber === currentQuestion
   );
   const questionImageUrl = currentQuestionData?.imageUrl;
+  const isTextQuestion = exam.questionType === "text";
 
   const submitAttempt = useCallback(async () => {
     if (submittedRef.current) {
@@ -253,16 +254,164 @@ export function AttemptRunner({ exam }: AttemptRunnerProps) {
 
       {/* ── Main Content ───────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
+        {isTextQuestion ? (
+        /* ═══════════════════════════════════════════════════════════
+           TEXT QUESTION LAYOUT — single centered column + sidebar
+           ═══════════════════════════════════════════════════════════ */
+        <main className="flex flex-1 flex-col overflow-hidden">
+          {/* Scrollable question area */}
+          <div className="flex-1 overflow-y-auto bg-[#f8f6f3]">
+            <div className="mx-auto max-w-2xl px-4 py-6 lg:py-8">
+              {/* Question number badge */}
+              <div className="mb-4 flex items-center gap-3">
+                <span className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--primary-light)] px-3.5 py-1.5 text-sm font-bold text-[var(--primary)]">
+                  Q{currentQuestion}
+                </span>
+                <span className="text-xs text-[var(--muted)]">
+                  {currentIndex + 1} of {questionNumbers.length}
+                </span>
+                {isCurrentMarked && (
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-[#fdf6e3] px-2 py-0.5 text-xs font-medium text-[#b8860b]">
+                    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
+                    Marked
+                  </span>
+                )}
+              </div>
+
+              {/* Question text */}
+              {currentQuestionData?.questionText ? (
+                <>
+                  <h3 className="mb-8 text-lg font-semibold leading-relaxed text-[var(--foreground)] lg:text-xl">
+                    {currentQuestionData.questionText}
+                  </h3>
+
+                  {/* Option cards */}
+                  <div className="space-y-3">
+                    {(["A", "B", "C", "D"] as const).map((letter) => {
+                      const optionText = currentQuestionData[`option${letter}` as keyof typeof currentQuestionData] as string | null | undefined;
+                      if (!optionText) return null;
+                      const selected = answers[String(currentQuestion)] === letter;
+                      return (
+                        <button
+                          key={letter}
+                          type="button"
+                          onClick={() => selectOption(currentQuestion, letter)}
+                          className={`group flex w-full items-start gap-4 rounded-2xl border-2 px-5 py-4 text-left transition-all ${
+                            selected
+                              ? "border-[#c9784e] bg-[#fdf5f0] shadow-sm"
+                              : "border-[var(--border)] bg-white hover:border-[#d4c4b5] hover:bg-[#fdfcfa] hover:shadow-sm"
+                          }`}
+                        >
+                          <span className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-sm font-bold transition-all ${
+                            selected
+                              ? "bg-[#c9784e] text-white shadow-sm"
+                              : "bg-[#f5efe8] text-[#3d3029] group-hover:bg-[#e8ddd4]"
+                          }`}>
+                            {letter}
+                          </span>
+                          <span className={`pt-1.5 text-[15px] font-medium leading-relaxed ${selected ? "text-[#8b5a3a]" : "text-[var(--foreground)]"}`}>
+                            {optionText}
+                          </span>
+                          {selected && (
+                            <svg className="ml-auto mt-1.5 h-5 w-5 flex-shrink-0 text-[#c9784e]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <div className="flex h-40 items-center justify-center text-sm text-[var(--muted)]">
+                  No question text available
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom nav bar for text questions */}
+          <div className="flex-shrink-0 border-t border-[var(--border)] bg-[var(--card)]">
+            <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 py-2.5">
+              <button
+                type="button"
+                onClick={goToPrevious}
+                disabled={currentIndex === 0 || submitting}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--secondary-light)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Prev
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleReview(currentQuestion)}
+                className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all ${
+                  isCurrentMarked
+                    ? "border-[#d4a017] bg-[#fdf6e3] text-[#b8860b]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:border-[#d4a017] hover:bg-[#fdf6e3] hover:text-[#b8860b]"
+                }`}
+              >
+                <svg className="h-4 w-4" fill={isCurrentMarked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                </svg>
+                {isCurrentMarked ? "Marked" : "Review"}
+              </button>
+
+              {/* Question counter — center */}
+              <div className="flex flex-1 items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowNavDrawer(true)}
+                  className="xl:hidden inline-flex items-center gap-1.5 rounded-xl bg-[var(--secondary-light)] px-3 py-2 text-xs font-medium text-[var(--foreground)] hover:bg-[#e8ddd4]"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h8M4 18h8" />
+                  </svg>
+                  {answeredCount}/{questionNumbers.length}
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={goToNext}
+                disabled={currentIndex === questionNumbers.length - 1 || submitting}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--secondary-light)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Next
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              {/* Submit — inline for text mode */}
+              <button
+                type="button"
+                onClick={handleManualSubmit}
+                disabled={submitting}
+                className="xl:hidden inline-flex items-center gap-1.5 rounded-xl bg-[#c9784e] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#b5673f] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {submitting ? "..." : "Submit"}
+              </button>
+            </div>
+          </div>
+        </main>
+        ) : (
+        /* ═══════════════════════════════════════════════════════════
+           IMAGE QUESTION LAYOUT — original 2-panel + sidebar
+           ═══════════════════════════════════════════════════════════ */
         <main className="flex flex-1 flex-col overflow-hidden lg:flex-row">
           {/* ── Panel 1: Question Image Viewer ─────────────────── */}
           {/* Tablet: flex-1 fills remaining space. Laptop+: flex-1 fills horizontal space */}
           <div className="flex min-h-0 flex-1 flex-col border-b border-[var(--border)] lg:border-b-0 lg:border-r">
-            {/* Image panel header */}
+            {/* Panel header */}
             <div className="flex flex-shrink-0 items-center justify-between border-b border-[var(--border)] bg-[var(--card)] px-3 py-2 lg:px-4 lg:py-2.5">
               <span className="inline-flex items-center gap-2 rounded-lg bg-[var(--primary-light)] px-3 py-1 text-sm font-semibold text-[var(--primary)]">
                 Q{currentQuestion}
               </span>
-              {/* Zoom Controls */}
+              {/* Zoom Controls — only for image questions */}
               {questionImageUrl && (
                 <div className="flex items-center gap-1">
                   <button
@@ -302,32 +451,32 @@ export function AttemptRunner({ exam }: AttemptRunnerProps) {
                 </div>
               )}
             </div>
-            {/* Image Area */}
-            <div
-              ref={imageContainerRef}
-              className="flex-1 overflow-auto bg-[#f8f6f3]"
-              onWheel={handleImageWheel}
-            >
-              {questionImageUrl ? (
-                <div className="flex min-h-full min-w-full items-center justify-center p-4">
-                  <img
-                    src={questionImageUrl}
-                    alt={`Question ${currentQuestion}`}
-                    className="block max-w-none transition-[width,height] duration-150"
-                    style={{
-                      width: naturalSize ? `${naturalSize.w * effectiveZoom}px` : "auto",
-                      height: "auto",
-                    }}
-                    draggable={false}
-                    onLoad={handleImageLoad}
-                  />
-                </div>
-              ) : (
-                <div className="flex h-full items-center justify-center text-sm text-[var(--muted)]">
-                  No image available for this question
-                </div>
-              )}
-            </div>
+            {/* Content Area */}
+              <div
+                ref={imageContainerRef}
+                className="flex-1 overflow-auto bg-[#f8f6f3]"
+                onWheel={handleImageWheel}
+              >
+                {questionImageUrl ? (
+                  <div className="flex min-h-full min-w-full items-center justify-center p-4">
+                    <img
+                      src={questionImageUrl}
+                      alt={`Question ${currentQuestion}`}
+                      className="block max-w-none transition-[width,height] duration-150"
+                      style={{
+                        width: naturalSize ? `${naturalSize.w * effectiveZoom}px` : "auto",
+                        height: "auto",
+                      }}
+                      draggable={false}
+                      onLoad={handleImageLoad}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-[var(--muted)]">
+                    No image available for this question
+                  </div>
+                )}
+              </div>
           </div>
 
           {/* ── Panel 2: Answer Options + Navigation ──────────── */}
@@ -487,6 +636,7 @@ export function AttemptRunner({ exam }: AttemptRunnerProps) {
             </div>
           </div>
         </main>
+        )}
 
         {/* ── Right Sidebar — permanent on xl+ ──────────────── */}
         <aside className="hidden w-64 flex-shrink-0 border-l border-[var(--border)] bg-[var(--card)] xl:flex xl:w-72">

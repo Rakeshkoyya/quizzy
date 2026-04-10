@@ -12,9 +12,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 export async function requireUser() {
   const session = await auth();
 
-  if (!session?.user?.id || !session.user.email) {
+  if (!session?.user?.id) {
     redirect("/login");
   }
 
-  return { id: session.user.id, email: session.user.email };
+  return { id: session.user.id, email: session.user.email ?? "" };
 }

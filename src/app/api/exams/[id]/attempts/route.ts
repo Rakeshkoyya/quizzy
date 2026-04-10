@@ -11,6 +11,30 @@ const submitAttemptSchema = z.object({
   userAnswers: z.record(z.string(), z.string()).default({}),
 });
 
+export async function GET(_: Request, { params }: { params: Params }) {
+  try {
+    const user = await requireUser();
+    const { id } = await params;
+
+    const attempts = await prisma.examAttempt.findMany({
+      where: { examId: id, userId: user.id },
+      orderBy: { submittedAt: "desc" },
+      select: {
+        id: true,
+        startedAt: true,
+        submittedAt: true,
+        correctCount: true,
+        wrongCount: true,
+        unansweredCount: true,
+      },
+    });
+
+    return NextResponse.json({ attempts });
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+}
+
 export async function POST(request: Request, { params }: { params: Params }) {
   try {
     const user = await requireUser();

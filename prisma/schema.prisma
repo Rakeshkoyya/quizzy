@@ -14,6 +14,8 @@ model User {
   id            String        @id @default(cuid())
   name          String?
   email         String?       @unique
+  username      String?       @unique
+  password      String?
   emailVerified DateTime?
   image         String?
   createdAt     DateTime      @default(now())
@@ -68,6 +70,10 @@ model Exam {
   solutionsJson    Json?
   imagePath        String?
   questionPdfPath  String?
+  questionType     String        @default("image") // "image" or "text"
+  correctMarks     Float         @default(4)
+  wrongMarks       Float         @default(-1)
+  unansweredMarks  Float         @default(0)
   userId           String
   isPublic         Boolean       @default(false)
   createdAt        DateTime      @default(now())
@@ -84,14 +90,19 @@ model Question {
   id             String  @id @default(cuid())
   examId         String
   questionNumber Int
-  imagePath      String
-  pageNumber     Int
+  imagePath      String?
+  pageNumber     Int     @default(1)
   subject        String?
   section        String?
   cropX          Float?
   cropY          Float?
   cropW          Float?
   cropH          Float?
+  questionText   String?
+  optionA        String?
+  optionB        String?
+  optionC        String?
+  optionD        String?
   exam           Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
 
   @@unique([examId, questionNumber])
